@@ -1,0 +1,220 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Interview Analyzer</title>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .video-panel, .feedback-panel, .chart-panel {
+      flex: 1;
+      min-width: 300px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    video {
+      width: 100%;
+      border-radius: 8px;
+    }
+    .feedback-panel h2, .chart-panel h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    #emotion, #posture {
+      font-weight: bold;
+      color: #007bff;
+    }
+    #feedback {
+      list-style-type: none;
+      padding: 0;
+    }
+    #feedback li {
+      margin: 5px 0;
+      color: #555;
+    }
+    #error {
+      color: red;
+      font-weight: bold;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Real-Time Interview Analyzer</h1>
+  <div class="container">
+    <div class="video-panel">
+      <video id="video" autoplay playsinline></video>
+    </div>
+    <div class="feedback-panel">
+      <h2>Feedback Panel</h2>
+      <p>Emotion: <span id="emotion">Detecting...</span></p>
+      <p>Posture: <span id="posture">Analyzing...</span></p>
+      <p>Advice:</p>
+      <ul id="feedback"></ul>
+      <p id="error"></p>
+    </div>
+    <div class="chart-panel">
+      <h2>📈 Emotion Trend (Last 60s)</h2>
+      <canvas id="emotionChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Socket.IO client
+    const socket = io('http://localhost:8000');
+
+    // Webcam setup
+    const video = document.getElementById('video');
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error('Error accessing webcam:', err);
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 'Failed to access webcam. Please check permissions.';
+      });
+
+    // Canvas for frame capture
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Send frames to backend
+    function sendFrame() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/jpeg', 0.5); // Base64 JPEG, quality 0.5
+        socket.emit('frame', { image: imageData });
+      }
+      setTimeout(sendFrame, 200); // Send every 200ms (~5 FPS)
+    }
+
+    // Start sending frames
+    video.addEventListener('play', () => {
+      sendFrame();
+    });
+
+    // Handle feedback from backend
+    socket.on('feedback', data => {
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('emotion').textContent = data.emotion || 'Detecting...';
+      document.getElementById('posture').textContent = data.posture || 'Analyzing...';
+      
+      // Update feedback list
+      const feedbackList = document.getElementById('feedback');
+      feedbackList.innerHTML = '';
+      (data.feedback || []).forEach(f => {
+        const li = document.createElement('li');
+        li.textContent = f;
+        feedbackList.appendChild(li);
+      });
+
+      // Update emotion trend chart
+      const emotionTrend = data.emotion_trend || {};
+      const labels = Object.keys(emotionTrend);
+      const values = Object.values(emotionTrend);
+      emotionChart.data.labels = labels;
+      emotionChart.data.datasets[0].data = values;
+      emotionChart.update();
+    });
+
+    // Handle errors from backend
+    socket.on('error', data => {
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = data.message || 'An error occurred.';
+    });
+
+    // Chart.js setup
+    const ctxChart = document.getElementById('emotionChart').getContext('2d');
+    const emotionChart = new Chart(ctxChart, {
+      type: 'bar',
+      data: {
+        labels: [], // Will be updated dynamically
+        datasets: [{
+          label: 'Emotion Distribution (%)',
+          data: [],
+          backgroundColor: ['#4CAF50', '#F44336', '#2196F3', '#FF9800', '#9C27B0', '#795548', '#607D8B'],
+          borderColor: ['#388E3C', '#D32F2F', '#1976D2', '#F57C00', '#7B1FA2', '#5D4037', '#455A64'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Percentage (%)' }
+          },
+          x: {
+            title: { display: true, text: 'Emotion' }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: 'Interview Emotion Trends' }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

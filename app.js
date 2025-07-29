@@ -162,4 +162,99 @@ document.getElementById('fullscreenBtn').addEventListener('click', () => {
 
     postureSummaryDiv.innerHTML = "<h4>Posture Summary</h4>" +
       Object.entries(summary.posture_summary).map(([posture, percent]) => `<p>${posture}: ${percent}%</p>`).join("");
-  });
+});
+
+const emotionChart = new Chart(document.getElementById('emotionChart').getContext('2d'), {
+  type: 'line',
+  data: emotionData,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            display: true,
+            labels: {
+                font: {
+                    family: 'Inter',
+                    size: 14,
+                    weight: 500,
+                    color: 'var(--light-text)'
+                }
+            }
+        },
+        tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            bodyFont: {
+                family: 'Inter',
+                size: 14
+            },
+            titleFont: {
+                family: 'Inter',
+                size: 14,
+                weight: 'bold'
+            },
+            padding: 10,
+            cornerRadius: 6,
+            displayColors: false // Hide color box in tooltip
+        }
+    },
+    scales: {
+      y: {
+        min: 1,
+        max: 7,
+        ticks: {
+          callback: function (value) {
+            const emotions = ["", "Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"];
+            return emotions[value];
+          },
+          font: {
+            family: 'Inter',
+            size: 12,
+            color: 'var(--light-text)'
+          }
+        },
+        grid: {
+          color: 'rgba(0,0,0,0.05)', // Very light grid lines
+          borderColor: 'rgba(0,0,0,0.1)'
+        },
+        title: {
+          display: true,
+          text: 'Emotion Type',
+          font: {
+            family: 'Inter',
+            size: 14,
+            weight: 'bold',
+            color: 'var(--dark-text)'
+          }
+        }
+      },
+      x: {
+        ticks: {
+          font: {
+            family: 'Inter',
+            size: 12,
+            color: 'var(--light-text)'
+          }
+        },
+        grid: {
+          display: false, // Hide vertical grid lines
+          borderColor: 'rgba(0,0,0,0.1)'
+        },
+        title: {
+          display: true,
+          text: 'Time',
+          font: {
+            family: 'Inter',
+            size: 14,
+            weight: 'bold',
+            color: 'var(--dark-text)'
+          }
+        }
+      }
+    }
+  }
+});
+// Update emotionData.datasets[0].borderColor and backgroundColor
+emotionData.datasets[0].borderColor = 'var(--primary-blue)';
+emotionData.datasets[0].backgroundColor = 'rgba(0, 123, 255, 0.1)';
+

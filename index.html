@@ -3,42 +3,532 @@
 <head>
   <meta charset="UTF-8">
   <title>Mock Interview Analyzer</title>
-  <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+
+    h2 {
+      text-align: center;
+      color: white;
+      margin-bottom: 10px;
+      font-size: 2.5rem;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .subtext {
+      text-align: center;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 30px;
+      font-size: 1.1rem;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-start {
+      background: linear-gradient(45deg, #28a745, #20c997);
+      color: white;
+      box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-start:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+    }
+
+    .btn-end {
+      background: linear-gradient(45deg, #dc3545, #fd7e14);
+      color: white;
+      box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-end:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .container {
+      display: flex;
+      gap: 30px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .video-wrapper {
+      flex: 1;
+    }
+
+    .video-container {
+      position: relative;
+      background: white;
+      border-radius: 15px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    #video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .fullscreen-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .fullscreen-btn:hover {
+      background: rgba(0,0,0,0.9);
+      transform: scale(1.1);
+    }
+
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .feedback-box {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    .feedback-box h3 {
+      margin-bottom: 20px;
+      color: #333;
+      font-size: 1.3rem;
+    }
+
+    .feedback-line {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 15px;
+      font-size: 1rem;
+    }
+
+    .feedback-line span:first-child {
+      font-weight: 600;
+      min-width: 80px;
+      color: #666;
+    }
+
+    .feedback-line span:last-child {
+      color: #333;
+      font-size: 1.1rem;
+    }
+
+    #advice-list {
+      margin: 5px 0 0 15px;
+      padding-left: 0;
+    }
+
+    #advice-list li {
+      margin-bottom: 8px;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    .chart-container {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      flex-grow: 1;
+    }
+
+    .chart-container h3 {
+      margin-bottom: 20px;
+      color: #333;
+      font-size: 1.2rem;
+    }
+
+    #emotionChart {
+      max-height: 300px;
+    }
+
+    .summary {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      margin-top: 20px;
+      display: none;
+    }
+
+    .summary h3 {
+      color: #333;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .summary-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+    }
+
+    .summary-section h4 {
+      color: #666;
+      margin-bottom: 15px;
+      font-size: 1.1rem;
+    }
+
+    .summary-section p {
+      margin-bottom: 8px;
+      color: #555;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+
+    .status-active {
+      background: #28a745;
+    }
+
+    .status-inactive {
+      background: #dc3545;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+      }
+      
+      .controls {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .summary-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+    }
+  </style>
 </head>
 <body>
   <h2>Real-Time Interview Analyzer</h2>
   <p class="subtext">Get instant feedback on your emotion and posture.</p>
 
-  
-<div class="container">
-  <div class="video-wrapper">
-    <div class="video-container">
-      <video id="video" autoplay playsinline></video>
-      <button id="fullscreenBtn" class="fullscreen-btn" title="Toggle Fullscreen">⛶</button>
-    </div>
+  <div class="controls">
+    <button id="startSessionBtn" class="btn btn-start">
+      ▶️ Start Analysis
+    </button>
+    <button id="endSessionBtn" class="btn btn-end" disabled>
+      ⏹️ End Analysis
+    </button>
   </div>
 
-
-  <div class="right-panel">
-    <div class="feedback-box" id="feedback">
-      <h3>Feedback Panel</h3>
-      <div class="feedback-line"><span>Emotion:</span> <span id="emotion">Detecting...</span></div>
-      <div class="feedback-line"><span>Posture:</span> <span id="posture">Analyzing...</span></div>
-      <div class="feedback-line"><span>Advice:</span>
-        <ul id="advice-list" style="margin: 5px 0 0 15px;"></ul>
+  <div class="container">
+    <div class="video-wrapper">
+      <div class="video-container">
+        <video id="video" autoplay playsinline></video>
+        <button id="fullscreenBtn" class="fullscreen-btn" title="Toggle Fullscreen">⛶</button>
       </div>
     </div>
 
-    <div class="chart-container">
-      <h3>📈 Emotion Trend (Last 60s)</h3>
-      <canvas id="emotionChart"></canvas>
+    <div class="right-panel">
+      <div class="feedback-box" id="feedback">
+        <h3>
+          📊 Feedback Panel 
+          <span id="statusIndicator" class="status-indicator status-inactive"></span>
+        </h3>
+        <div class="feedback-line"><span>Emotion:</span> <span id="emotion">Click Start to begin</span></div>
+        <div class="feedback-line"><span>Posture:</span> <span id="posture">Click Start to begin</span></div>
+        <div class="feedback-line"><span>Advice:</span>
+          <ul id="advice-list" style="margin: 5px 0 0 15px;">
+            <li>Press the Start Analysis button to begin your session</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h3>📈 Emotion Trend (Last 60s)</h3>
+        <canvas id="emotionChart"></canvas>
+      </div>
     </div>
   </div>
-</div>
 
-  <script src="app.js"></script>
+  <div id="summary" class="summary">
+    <h3>📋 Session Summary</h3>
+    <div class="summary-content">
+      <div id="emotionSummary" class="summary-section"></div>
+      <div id="postureSummary" class="summary-section"></div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io("http://localhost:8000", {
+      transports: ["websocket"]
+    });
+
+    const video = document.getElementById("video");
+    const emotionSpan = document.getElementById("emotion");
+    const postureSpan = document.getElementById("posture");
+    const adviceList = document.getElementById("advice-list");
+    const statusIndicator = document.getElementById("statusIndicator");
+
+    let analysisActive = false;
+    let frameInterval;
+
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+      video.srcObject = stream;
+    }).catch(err => {
+      console.error("Error accessing webcam:", err);
+      adviceList.innerHTML = "<li>❌ Unable to access webcam. Please check permissions.</li>";
+    });
+
+    function startFrameCapture() {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+
+      frameInterval = setInterval(() => {
+        if (!analysisActive) return;
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL("image/jpeg");
+        socket.emit("frame", { image: base64 });
+      }, 500);
+    }
+
+    function stopFrameCapture() {
+      if (frameInterval) {
+        clearInterval(frameInterval);
+        frameInterval = null;
+      }
+    }
+
+    function getEmojiForEmotion(emotion) {
+      const emojis = {
+        happy: "😊", sad: "😢", angry: "😠", surprise: "😲",
+        neutral: "😐", fear: "😨", disgust: "🤢", unknown: "❓"
+      };
+      return emojis[emotion.toLowerCase()] || "❓";
+    }
+
+    function getEmojiForPosture(posture) {
+      const emojis = {
+        Good: "✅", Slouching: "⚠️", Leaning: "↩️", Unknown: "❓"
+      };
+      return emojis[posture] || "❓";
+    }
+
+    const emotionData = {
+      labels: [],
+      datasets: [{
+        label: 'Emotion Index (1-7)',
+        data: [],
+        borderColor: 'rgba(78, 115, 223, 1)',
+        backgroundColor: 'rgba(78, 115, 223, 0.1)',
+        fill: true,
+        tension: 0.3
+      }]
+    };
+
+    const emotionChart = new Chart(document.getElementById('emotionChart').getContext('2d'), {
+      type: 'line',
+      data: emotionData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            min: 1,
+            max: 7,
+            ticks: {
+              callback: function (value) {
+                const emotions = ["", "Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"];
+                return emotions[value];
+              }
+            },
+            title: {
+              display: true,
+              text: 'Emotion Type'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Time'
+            }
+          }
+        }
+      }
+    });
+
+    const emotionToIndex = {
+      angry: 1, disgust: 2, fear: 3,
+      happy: 4, sad: 5, surprise: 6, neutral: 7
+    };
+
+    let lastEmotion = "neutral";
+
+    socket.on("feedback", (data) => {
+      if (!analysisActive) return;
+      
+      const { emotion, posture, feedback } = data;
+
+      emotionSpan.textContent = `${emotion} ${getEmojiForEmotion(emotion)}`;
+      postureSpan.textContent = `${posture} ${getEmojiForPosture(posture)}`;
+      adviceList.innerHTML = "";
+
+      if (feedback.length === 0) {
+        adviceList.innerHTML = "<li>You're doing great! 👍</li>";
+      } else {
+        feedback.forEach(f => {
+          const li = document.createElement("li");
+          li.textContent = f;
+          adviceList.appendChild(li);
+        });
+      }
+
+      lastEmotion = emotion.toLowerCase();
+    });
+
+    setInterval(() => {
+      if (!analysisActive) return;
+      
+      const now = new Date();
+      const timeLabel = now.toLocaleTimeString();
+
+      emotionData.labels.push(timeLabel);
+      emotionData.datasets[0].data.push(emotionToIndex[lastEmotion] || 0);
+
+      if (emotionData.labels.length > 12) {
+        emotionData.labels.shift();
+        emotionData.datasets[0].data.shift();
+      }
+
+      emotionChart.update();
+    }, 5000);
+
+    socket.on("connect", () => {
+      console.log("Connected to backend");
+    });
+
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+      const videoElement = document.getElementById('video');
+      if (!document.fullscreenElement) {
+        videoElement.requestFullscreen().catch(err => {
+          console.error("Error attempting to enable full-screen mode:", err);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    // Session Control
+    const startSessionBtn = document.getElementById("startSessionBtn");
+    const endSessionBtn = document.getElementById("endSessionBtn");
+    const summaryDiv = document.getElementById("summary");
+    const emotionSummaryDiv = document.getElementById("emotionSummary");
+    const postureSummaryDiv = document.getElementById("postureSummary");
+
+    startSessionBtn.addEventListener("click", () => {
+      analysisActive = true;
+      socket.emit("start_session");
+      startFrameCapture();
+      
+      startSessionBtn.disabled = true;
+      endSessionBtn.disabled = false;
+      summaryDiv.style.display = "none";
+      
+      statusIndicator.className = "status-indicator status-active";
+      emotionSpan.textContent = "Initializing...";
+      postureSpan.textContent = "Starting analysis...";
+      adviceList.innerHTML = "<li>🔄 Analysis started! Sit up straight and look at the camera.</li>";
+    });
+
+    endSessionBtn.addEventListener("click", () => {
+      analysisActive = false;
+      socket.emit("end_session");
+      stopFrameCapture();
+      
+      startSessionBtn.disabled = false;
+      endSessionBtn.disabled = true;
+      
+      statusIndicator.className = "status-indicator status-inactive";
+      emotionSpan.textContent = "Session ended";
+      postureSpan.textContent = "Session ended";
+      adviceList.innerHTML = "<li>✅ Analysis completed! Check your session summary below.</li>";
+    });
+
+    socket.on("session_summary", (summary) => {
+      summaryDiv.style.display = "block";
+
+      emotionSummaryDiv.innerHTML = "<h4>🎭 Emotion Summary</h4>" +
+        Object.entries(summary.emotion_summary || {}).map(([emotion, percent]) => 
+          `<p>${emotion.charAt(0).toUpperCase() + emotion.slice(1)}: ${percent}%</p>`
+        ).join("");
+
+      postureSummaryDiv.innerHTML = "<h4>🧍 Posture Summary</h4>" +
+        Object.entries(summary.posture_summary || {}).map(([posture, percent]) => 
+          `<p>${posture}: ${percent}%</p>`
+        ).join("");
+    });
+  </script>
 </body>
 </html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload Interview Video</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+    #progressContainer {
+      width: 100%;
+      max-width: 500px;
+      height: 20px;
+      background-color: #e2e8f0; /* Tailwind slate-200 */
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 1rem;
+      display: none;
+    }
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background-color: #3b82f6; /* Tailwind blue-500 */
+      transition: width 0.2s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-white min-h-screen flex flex-col items-center p-8">
+
+  <h1 class="text-3xl font-semibold mb-6">Upload Interview Video</h1>
+
+  <form id="uploadForm" class="w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+    <label for="video" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Select Video File:</label>
+    <input type="file" name="video" id="video" accept="video/*" class="w-full mb-4 px-3 py-2 border rounded-md text-gray-900 dark:text-white dark:bg-gray-700 dark:border-gray-600">
+
+    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition w-full">
+      Upload & Analyze
+    </button>
+  </form>
+    <div id="progressContainer">
+    <div id="progressBar"></div>
+  </div>
+
+  <div id="videoPreview" class="mt-6 hidden w-full max-w-2xl">
+    <h2 class="text-xl font-semibold mb-2">Video Preview</h2>
+    <video id="uploadedVideo" controls class="w-full rounded-md shadow"></video>
+  </div>
+
+  <div id="message" class="mt-6 w-full max-w-2xl text-left"></div>
+
+  <canvas id="emotionChart" width="400" height="200" class="mt-6 w-full max-w-2xl"></canvas>
+
+  <script>
+    const uploadForm = document.getElementById('uploadForm');
+    const videoPreview = document.getElementById('videoPreview');
+    const uploadedVideo = document.getElementById('uploadedVideo');
+    const messageDiv = document.getElementById('message');
+        const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+
+    uploadForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+//     const formData = new FormData();
+    const fileInput = document.getElementById("video");
+    const file = fileInput.files[0];
+    // formData.append("file", file); // ✅ backend expects this key: "file"
+
+      if (!file) {
+        alert("Please select a video file.");
+        return;
+      }
+
+      // Show video preview
+      const videoURL = URL.createObjectURL(file);
+      uploadedVideo.src = videoURL;
+      videoPreview.classList.remove("hidden");
+
+          // Reset message and chart
+      messageDiv.innerHTML = '';
+      if (window.emotionChartInstance) {
+        window.emotionChartInstance.destroy();
+      }
+      progressBar.style.width = '0%';
+      progressContainer.style.display = 'block';
+
+      // Use XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
+
+      xhr.open('POST', 'http://localhost:8000/upload-video', true);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 50; // 50% for upload
+          progressBar.style.width = percentComplete + '%';
+        }
+      };
+
+      xhr.onprogress = (event) => {
+        // This is download progress (response)
+        if (event.lengthComputable) {
+          const percentComplete = 50 + (event.loaded / event.total) * 50; // second 50% for response download
+          progressBar.style.width = percentComplete + '%';
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          progressBar.style.width = '100%';
+
+          const result = JSON.parse(xhr.responseText);
+          const summary = result?.summary || {};
+          const mostCommonEmotion = summary.most_common_emotion ?? 'N/A';
+          const mostCommonPosture = summary.most_common_posture ?? 'N/A';
+          const emotionDistribution = summary.emotion_summary || {};
+          const postureDistribution = summary.posture_summary || {};
+
+          messageDiv.innerHTML = `
+            <div class="bg-green-100 dark:bg-green-800 p-4 rounded-lg shadow-md">
+              ✅ <strong>${result.message}</strong><br><br>
+              <strong>Session ID:</strong> ${result.session_id || 'N/A'}<br>
+              <strong>Duration:</strong> ${summary.duration || 'N/A'}<br>
+              <strong>Most Frequent Emotion:</strong> ${mostCommonEmotion}<br>
+              <strong>Most Frequent Posture:</strong> ${mostCommonPosture}<br>
+              <strong>Emotion Distribution:</strong>
+              <ul class="list-disc list-inside mt-2">
+                ${
+                  Object.entries(emotionDistribution).length > 0
+                    ? Object.entries(emotionDistribution).map(
+                        ([emotion, count]) => `<li>${emotion}: ${count}</li>`
+                      ).join('')
+                    : '<li>No data</li>'
+                }
+              </ul>
+            </div>
+          `;
+
+          // Render emotion chart
+          const chartCanvas = document.getElementById('emotionChart');
+          const ctx = chartCanvas.getContext('2d');
+
+          if (window.emotionChartInstance) {
+            window.emotionChartInstance.destroy();
+          }
+
+          window.emotionChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: Object.keys(emotionDistribution),
+              datasets: [{
+                label: 'Emotion Frequency',
+                data: Object.values(emotionDistribution),
+                backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    precision: 0
+                  }
+                }
+              }
+            }
+          });
+
+          // Hide progress bar after a short delay
+          setTimeout(() => {
+            progressContainer.style.display = 'none';
+            progressBar.style.width = '0%';
+          }, 1500);
+        } else {
+          messageDiv.innerHTML = `<div class="bg-red-100 dark:bg-red-800 p-4 rounded-lg">❌ Upload failed. Please try again.</div>`;
+          progressContainer.style.display = 'none';
+          progressBar.style.width = '0%';
+        }
+      };
+
+      xhr.onerror = () => {
+        messageDiv.innerHTML = `<div class="bg-red-100 dark:bg-red-800 p-4 rounded-lg">❌ Upload failed. Please try again.</div>`;
+        progressContainer.style.display = 'none';
+        progressBar.style.width = '0%';
+      };
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      xhr.send(formData);
+    });
+
+  </script>
+</body>
+</html>
